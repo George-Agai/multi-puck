@@ -1,5 +1,6 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import Landing from './pages/Home'
+import GameScreen from './pages/GameScreen'
 import './App.css'
 
 function App() {
@@ -8,6 +9,7 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route path='/' element={<Landing />} />
+          <Route path='/offline' element={<GameScreen />} />
         </Routes>
       </BrowserRouter>
     </div>

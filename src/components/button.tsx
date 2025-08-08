@@ -1,11 +1,14 @@
 import { useInView } from '../hooks/useInView'
+import { useNavigate } from 'react-router-dom';
 
 export const Button: React.FC = () => {
     const [ref, inView] = useInView<HTMLButtonElement>({ threshold: 0.1 })
+    const navigate = useNavigate()
 
     return (
         <button
             ref={ref}
+            onClick={() => navigate('/offline')}
             className={`
         transform transition-transform duration-500 ease-out
         px-2.5 py-1 mt-1 mb-1 font-semibold cursor-pointer
