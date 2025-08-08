@@ -1,0 +1,45 @@
+@import "tailwindcss";
+
+* {
+  box-sizing: border-box;
+  /* margin: 0; */
+  /* padding: 0; */
+}
+
+html, body {
+  overflow-x: hidden;
+}
+
+body {
+  font-family: "Nata Sans", sans-serif;
+  color: var(--color-dark);
+  background: var(--color-light);
+}
+
+.my-container {
+  width: 100%;
+  max-width: var(--max-width);
+  margin: 0 auto;
+  /* padding: var(--spacing); */
+}
+
+.full-container{
+  width: 100%;
+  margin: 0 auto;
+}
+
+/* Slide in animation */
+@keyframes slide-in-from-right {
+  0% {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  100% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.slide-in {
+  animation: slide-in-from-right 0.7s ease-out forwards;
+}
