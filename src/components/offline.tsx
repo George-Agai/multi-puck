@@ -26,6 +26,32 @@ export default function Offline(): JSX.Element {
 
   const [rounds, setRounds] = useState<Score>({ you: 0, opp: 0 }); // rounds won in current game
   const [matchWinner, setMatchWinner] = useState<string | null>(null);
+  const [roundCountdown, setRoundCountdown] = useState<number | null>(null);
+  const [currentRound, setCurrentRound] = useState(1);
+
+  // Pause-emoji state
+  const [pauseEmoji, setPauseEmoji] = useState<{ side: 'you' | 'opp'; x: number; y: number } | null>(
+    null
+  );
+
+  // refs to keep latest values for use in RAF / async code
+  const roundsRef = useRef<Score>({ you: 0, opp: 0 });
+  useEffect(() => {
+    roundsRef.current = rounds;
+  }, [rounds]);
+
+  const currentRoundRef = useRef<number>(1);
+  useEffect(() => {
+    currentRoundRef.current = currentRound;
+  }, [currentRound]);
+
+  const matchWinnerRef = useRef<string | null>(null);
+  useEffect(() => {
+    matchWinnerRef.current = matchWinner;
+  }, [matchWinner]);
+
+  const countdownIntervalRef = useRef<number | null>(null);
+  const handlingRoundEndRef = useRef<boolean>(false);
 
   function extractClientX(e: any): number {
     const ev = e.nativeEvent ?? e;
@@ -35,12 +61,57 @@ export default function Offline(): JSX.Element {
     return 0;
   }
 
+  // startRoundCountdown shows Round 1 countdown on initial mount or after Play Again
+  function startRoundCountdown(roundNum: number) {
+    // If match already finished, don't show countdown
+    if (matchWinnerRef.current) return;
+
+    stopLoop(); // pause game updates
+
+    // Clear existing interval if any
+    if (countdownIntervalRef.current !== null) {
+      window.clearInterval(countdownIntervalRef.current);
+      countdownIntervalRef.current = null;
+    }
+
+    setCurrentRound(roundNum);
+    let count = 3;
+    setRoundCountdown(count);
+
+    countdownIntervalRef.current = window.setInterval(() => {
+      count -= 1;
+      if (count <= 0) {
+        if (countdownIntervalRef.current !== null) {
+          window.clearInterval(countdownIntervalRef.current);
+          countdownIntervalRef.current = null;
+        }
+        setRoundCountdown(null);
+        // start the game loop after countdown finishes
+        startLoop();
+      } else {
+        setRoundCountdown(count);
+      }
+    }, 1000);
+  }
+
+  // Start Round 1 when game begins or when Play Again clears matchWinner & rounds
+  useEffect(() => {
+    // If matchWinner is null and rounds are cleared and we're on round 1, trigger countdown.
+    // This is Option 1 approach — it ensures React state updates settle before we start countdown.
+    if (matchWinner === null && rounds.you === 0 && rounds.opp === 0 && currentRound === 1) {
+      // Avoid re-triggering if a countdown is already active
+      if (roundCountdown === null) startRoundCountdown(1);
+    }
+    // We intentionally do NOT put roundCountdown in the deps to avoid doubling.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [matchWinner, rounds.you, rounds.opp, currentRound]);
+
   useEffect(() => {
     function resize() {
       const canvas = canvasRef.current;
       if (!canvas) return;
 
-      // Match the internal resolution to the CSS size
+      // Match the internal resolution to the CSS size (fixes oval puck)
       const displayWidth = canvas.clientWidth;
       const displayHeight = canvas.clientHeight;
 
@@ -57,11 +128,17 @@ export default function Offline(): JSX.Element {
 
     resize();
     window.addEventListener('resize', resize);
-    startLoop();
+
+    // do not call startRoundCountdown here (we rely on the effect above)
     return () => {
       window.removeEventListener('resize', resize);
       stopLoop();
+      if (countdownIntervalRef.current !== null) {
+        window.clearInterval(countdownIntervalRef.current);
+        countdownIntervalRef.current = null;
+      }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function startLoop() {
@@ -94,21 +171,82 @@ export default function Offline(): JSX.Element {
     layoutKnobToPaddle();
   }
 
-  function checkRoundWin(nextRounds: Score) {
+  // checkRoundWin returns true if the game ended
+  function checkRoundWin(nextRounds: Score): boolean {
     // Check win by reaching 3 rounds first
     if (nextRounds.you >= ROUNDS_TO_WIN_GAME || nextRounds.opp >= ROUNDS_TO_WIN_GAME) {
       endGame(nextRounds.you > nextRounds.opp ? 'You' : 'Opponent');
-      return;
+      return true;
     }
     // Or check if 5 total rounds have been played
     if (nextRounds.you + nextRounds.opp >= MAX_ROUNDS_PER_GAME) {
       endGame(nextRounds.you > nextRounds.opp ? 'You' : nextRounds.opp > nextRounds.you ? 'Opponent' : 'Tie');
+      return true;
     }
+    return false;
   }
 
   function endGame(winner: string) {
     setMatchWinner(winner);
+    // ensure game paused
     stopLoop();
+    // clear countdown if any
+    if (countdownIntervalRef.current !== null) {
+      window.clearInterval(countdownIntervalRef.current);
+      countdownIntervalRef.current = null;
+    }
+    setRoundCountdown(null);
+    // also clear any pause emoji
+    setPauseEmoji(null);
+  }
+
+  // handleRoundEnd manages the 2s emoji pause and continuation of the game
+  async function handleRoundEnd(side: 'you' | 'opp') {
+    // Prevent handling if game is already over
+    if (matchWinnerRef.current) return;
+
+    // avoid double-handling
+    if (handlingRoundEndRef.current) return;
+    handlingRoundEndRef.current = true;
+
+    stopLoop();
+    const canvas = canvasRef.current;
+    const puck = puckRef.current;
+    if (!canvas) {
+      handlingRoundEndRef.current = false;
+      return;
+    }
+
+    // compute next rounds using the latest roundsRef for consistent value
+    const prevRounds = roundsRef.current;
+    const nextRounds: Score =
+      side === 'you' ? { you: prevRounds.you + 1, opp: prevRounds.opp } : { you: prevRounds.you, opp: prevRounds.opp + 1 };
+
+    // update rounds state and increment currentRound
+    setRounds(nextRounds);
+    setCurrentRound((r) => Math.min(r + 1, MAX_ROUNDS_PER_GAME));
+
+    // check if game ended synchronously (we set matchWinner inside checkRoundWin)
+    const ended = checkRoundWin(nextRounds);
+    if (ended) {
+      handlingRoundEndRef.current = false;
+      return; // no emoji if the game ended
+    }
+
+    // Show emoji at the side it went out (clamped within canvas)
+    const x = Math.max(12, Math.min(puck.x, canvas.width - 12));
+    const y = side === 'you' ? 20 : canvas.height - 34; // place slightly inside the canvas
+    setPauseEmoji({ side, x, y });
+
+    // Pause visually for 2 seconds
+    await new Promise((res) => setTimeout(res, 2000));
+
+    // hide emoji, reset puck and resume
+    setPauseEmoji(null);
+    resetRound();
+    startLoop();
+
+    handlingRoundEndRef.current = false;
   }
 
   function update() {
@@ -118,6 +256,7 @@ export default function Offline(): JSX.Element {
     puck.x += puck.dx * speedMultRef.current;
     puck.y += puck.dy * speedMultRef.current;
 
+    // horizontal walls
     if (puck.x - PUCK_SIZE < 0) {
       puck.x = PUCK_SIZE;
       puck.dx *= -1;
@@ -127,6 +266,7 @@ export default function Offline(): JSX.Element {
       puck.dx *= -1;
     }
 
+    // paddle collision bottom (player)
     const playerTop = canvas.height - 30;
     if (
       puck.y + PUCK_SIZE >= playerTop &&
@@ -141,6 +281,7 @@ export default function Offline(): JSX.Element {
       speedMultRef.current *= 1.03;
     }
 
+    // paddle collision top (opponent)
     const opponentBottom = 30;
     if (
       puck.y - PUCK_SIZE <= opponentBottom &&
@@ -155,26 +296,23 @@ export default function Offline(): JSX.Element {
       speedMultRef.current *= 1.03;
     }
 
+    // SCORE: puck through top => player wins a round (you)
     if (puck.y - PUCK_SIZE <= 0) {
-      setRounds((prev) => {
-        const next = { you: prev.you + 1, opp: prev.opp };
-        checkRoundWin(next);
-        return next;
-      });
-      resetRound();
+      // call the handler that pauses and shows emoji
+      handleRoundEnd('you');
+      return;
     } else if (puck.y + PUCK_SIZE >= canvas.height) {
-      setRounds((prev) => {
-        const next = { you: prev.you, opp: prev.opp + 1 };
-        checkRoundWin(next);
-        return next;
-      });
-      resetRound();
+      // opponent wins the round
+      handleRoundEnd('opp');
+      return;
     }
 
-    const aiSpeed = Math.max(1.6, 4 - speedMultRef.current);
+    // AI: simple follow puck with a cap
+    const aiSpeed = Math.max(3, 9 - speedMultRef.current);
     const target = puck.x - paddleWidthRef.current / 2;
     const diff = target - opponentRef.current;
     opponentRef.current += Math.sign(diff) * Math.min(Math.abs(diff), aiSpeed);
+    // clamp
     opponentRef.current = Math.max(0, Math.min(opponentRef.current, canvas.width - paddleWidthRef.current));
   }
 
@@ -184,6 +322,7 @@ export default function Offline(): JSX.Element {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    // warm gradient background
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     const g = ctx.createLinearGradient(0, 0, 0, canvas.height);
     g.addColorStop(0, '#FFB88C');
@@ -192,18 +331,22 @@ export default function Offline(): JSX.Element {
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+    // opponent paddle (top)
     ctx.fillStyle = '#FFD27F';
     ctx.fillRect(opponentRef.current, 12, paddleWidthRef.current, PADDLE_HEIGHT);
 
+    // player paddle (bottom)
     ctx.fillStyle = '#FFEE93';
     ctx.fillRect(paddleRef.current, canvas.height - 30, paddleWidthRef.current, PADDLE_HEIGHT);
 
+    // puck
     ctx.beginPath();
     ctx.fillStyle = '#FF3D00';
     const p = puckRef.current;
     ctx.arc(p.x, p.y, PUCK_SIZE, 0, Math.PI * 2);
     ctx.fill();
 
+    // center line
     ctx.fillStyle = 'rgba(255,255,255,0.08)';
     ctx.fillRect(0, canvas.height / 2 - 1, canvas.width, 2);
   }
@@ -261,11 +404,35 @@ export default function Offline(): JSX.Element {
     knob.style.transform = `translateX(${left}px)`;
   }
 
+  // Reset match: clear rounds and matchWinner. We rely on the effect
+  // watching matchWinner/rounds to start the initial Round 1 countdown.
   function resetMatch() {
     setRounds({ you: 0, opp: 0 });
     setMatchWinner(null);
-    resetRound();
-    startLoop();
+    setCurrentRound(1);
+    resetRound(); // center puck + set dx/dy for when loop starts
+    // Do NOT call startRoundCountdown directly here (Option 1 approach).
+
+    function resize() {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      // Match the internal resolution to the CSS size (fixes oval puck)
+      const displayWidth = canvas.clientWidth;
+      const displayHeight = canvas.clientHeight;
+
+      canvas.width = displayWidth;
+      canvas.height = displayHeight;
+
+      paddleWidthRef.current = Math.round(canvas.width * 0.28);
+      paddleRef.current = (canvas.width - paddleWidthRef.current) / 2;
+      opponentRef.current = paddleRef.current;
+      puckRef.current = { x: canvas.width / 2, y: canvas.height / 2, dx: 3, dy: 3 };
+
+      layoutKnobToPaddle();
+    }
+
+    resize();
   }
 
   return (
@@ -296,6 +463,13 @@ export default function Offline(): JSX.Element {
         </div>
       </div>
 
+      {roundCountdown !== null && !matchWinner && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 backdrop-blur-sm text-white z-50">
+          <div className="text-2xl font-bold mb-2">Round {currentRound}</div>
+          <div className="text-5xl font-extrabold">{roundCountdown}</div>
+        </div>
+      )}
+
       {/* Canvas */}
       <div className="w-full max-w-md bg-white shadow p-0 flex-shrink">
         <div className="relative">
@@ -304,6 +478,21 @@ export default function Offline(): JSX.Element {
             className="w-full h-[65vh] touch-none"
             style={{ display: 'block' }}
           />
+          {/* Pause emoji overlay (appears near the puck exit) */}
+          {pauseEmoji && !matchWinner && (
+            <div
+              style={{
+                position: 'absolute',
+                left: `${pauseEmoji.x - 12}px`,
+                top: `${pauseEmoji.y - 12}px`,
+                pointerEvents: 'none',
+              }}
+              className="z-50 text-2xl select-none"
+            >
+              😂
+            </div>
+          )}
+
           {matchWinner && (
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="bg-white/90 p-4 rounded-lg text-center pointer-events-auto">
