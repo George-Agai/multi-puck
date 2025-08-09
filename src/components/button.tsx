@@ -17,7 +17,7 @@ export const Button: React.FC = () => {
         ${inView ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'}
       `}
         >
-            Download App
+            PLAY OFFLINE
         </button>
     );
 };

@@ -1,16 +1,20 @@
 import heroBg from '../assets/backgroundImages/hero-bg.webp';
 import { Header } from './header';
 import { Button } from './button';
+import logo from '../assets/icons/logo.png'
 
 export const Hero: React.FC = () => (
-    <section className="full-container bg-cover bg-center text-center pb-12 bg-purple-200" style={{ backgroundImage: `url(${heroBg})` }}>
+    <section className="h-[92vh] md:h-[100vh] full-container bg-cover bg-center text-center pb-12 bg-purple-200" style={{ backgroundImage: `url(${heroBg})` }}>
         <Header />
-        <h1 className="slide-in text-5xl mt-10 md:text-6xl font-bold mb-1 mt-1">
-            Send money instantly⚡️
-        </h1>
-        <p className="slide-in text-lg md:text-xl mb-1">
-            Fast, secure and low-cost payments wherever you are.
-        </p>
-        <Button/>
+        <div className="slide-in mt-5 md:mt-1 flex flex-col items-center justify-center">
+            <img src={logo} alt="logo" className='w-10 h-10' />
+            <h1 className="text-7xl md:text-7xl font-bold">
+                Multi
+            </h1>
+            <h1 className="text-7xl md:text-7xl font-bold mb-2">
+                Puck
+            </h1>
+            <Button />
+        </div>
     </section>
 );
