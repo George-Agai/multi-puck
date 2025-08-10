@@ -441,18 +441,18 @@ export default function Offline(): JSX.Element {
       <div className="w-full max-w-md flex items-center justify-between px-1 my-0.5">
         <div className="flex items-center gap-3">
           <div className="text-sm text-gray-700 text-center">
-            <div className="font-semibold">You</div>
-            <div className="font-bold text-lg">{rounds.you}</div>
+            <div className="font-light">You</div>
+            <div className="font-bold text-4xl">{rounds.you}</div>
             <div className="text-xs text-gray-500">Rounds</div>
           </div>
           <div className="text-sm text-gray-700 text-center">
-            <div className="font-semibold">Opponent</div>
-            <div className="font-bold text-lg">{rounds.opp}</div>
+            <div className="font-light">Opponent</div>
+            <div className="font-bold text-4xl">{rounds.opp}</div>
             <div className="text-xs text-gray-500">Rounds</div>
           </div>
           <div className="text-sm text-gray-700 text-center">
-            <div className="font-semibold">Total</div>
-            <div className="font-bold text-lg">{MAX_ROUNDS_PER_GAME}</div>
+            <div className="font-light">Total</div>
+            <div className="font-bold text-4xl">{MAX_ROUNDS_PER_GAME}</div>
             <div className="text-xs text-gray-500">Rounds</div>
           </div>
         </div>

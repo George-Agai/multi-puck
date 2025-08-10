@@ -6,12 +6,36 @@
   /* padding: 0; */
 }
 
+@font-face {
+  font-family: 'evilempire';
+  src: url('/src/assets/fonts/EvilEmpire.otf') format('opentype');
+  /* font-weight: normal;
+  font-style: normal; */
+}
+
+.evilempire {
+  font-family: 'evilempire', sans-serif;
+}
+
+@font-face {
+  font-family: 'pixelfont';
+  src: url('/src/assets/fonts/PixelGame.otf') format('opentype');
+  /* font-weight: normal;
+  font-style: normal; */
+}
+
+.pixelfont {
+  font-family: 'pixelfont', sans-serif;
+}
+
+
 html, body {
   overflow-x: hidden;
 }
 
 body {
-  font-family: "Nata Sans", sans-serif;
+  /* font-family: "Nata Sans", sans-serif; */
+  font-family: "pixelfont";
   color: var(--color-dark);
   background: var(--color-light);
 }
