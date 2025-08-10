@@ -8,10 +8,10 @@ export const Hero: React.FC = () => (
         <Header />
         <div className="slide-in mt-5 md:mt-1 flex flex-col items-center justify-center">
             <img src={logo} alt="logo" className='w-10 h-10' />
-            <h1 className="text-7xl md:text-7xl font-bold">
+            <h1 className="text-8xl md:text-7xl font-bold">
                 Multi
             </h1>
-            <h1 className="text-7xl md:text-7xl font-bold mb-2">
+            <h1 className="text-8xl md:text-7xl font-bold mb-1">
                 Puck
             </h1>
             <Button />
