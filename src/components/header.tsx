@@ -1,12 +1,14 @@
 import { useState } from 'react';
-import logo from '../assets/icons/logo.png'
+import logo from '../assets/icons/coolcado.png'
 
 export const Header: React.FC = () => {
   const [open, setOpen] = useState(false);
-
   return (
     <header className="relative my-container flex items-center justify-between p-1">
-      <div className="flex items-center text-md font-semibold"><img src={logo} alt="logo" className='w-1.5 h-1.5'/>CoolCado</div>
+      <a className="flex items-center text-md font-semibold cursor-pointer" target='new' href="https://x.com/george__agai">
+        <img src={logo} alt="logo" className='w-1.5 h-1.5'/>
+        <span style={{marginTop: '5px'}}>CoolCado</span>
+      </a>
 
       <button
         className="md:hidden text-2xl z-20"
@@ -26,8 +28,8 @@ export const Header: React.FC = () => {
         `}
       >
         <a href="#features" className="block py-1 px-2 hover:text-blue-600">Invite</a>
-        <a href="#pricing"  className="block py-1 px-2 hover:text-blue-600">How To Play</a>
-        <a href="#contact"  className="block py-1 px-2 hover:text-blue-600">Contact</a>
+        <a href="#pricing" className="block py-1 px-2 hover:text-blue-600">How To Play</a>
+        <a href="#contact" className="block py-1 px-2 hover:text-blue-600">Contact</a>
       </nav>
     </header>
   );
