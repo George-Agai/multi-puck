@@ -67,3 +67,22 @@ body {
 .slide-in {
   animation: slide-in-from-right 0.7s ease-out forwards;
 }
+
+@keyframes bounce-left {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(-20px); }
+}
+
+@keyframes bounce-right {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(20px); }
+}
+
+.bounce-left {
+  animation: bounce-left 3s ease-in-out infinite;
+}
+
+.bounce-right {
+  animation: bounce-right 3s ease-in-out infinite;
+}
+
