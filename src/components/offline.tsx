@@ -1,4 +1,6 @@
 import React, { useEffect, useRef, useState, type JSX } from 'react';
+import canvasBg from '../assets/backgroundImages/canvas-bg.webp';
+import scoresBg from '../assets/backgroundImages/score-bg.webp';
 
 type Puck = { x: number; y: number; dx: number; dy: number };
 type Score = { you: number; opp: number };
@@ -316,20 +318,20 @@ export default function Offline(): JSX.Element {
     opponentRef.current = Math.max(0, Math.min(opponentRef.current, canvas.width - paddleWidthRef.current));
   }
 
+  const bgImage = new Image();
+  bgImage.src = canvasBg;
+
   function draw() {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // warm gradient background
+    // Clear the canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    const g = ctx.createLinearGradient(0, 0, 0, canvas.height);
-    g.addColorStop(0, '#FFB88C');
-    g.addColorStop(0.6, '#FF7A88');
-    g.addColorStop(1, '#FFC3A0');
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Draw background image (cover)
+    ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
 
     // opponent paddle (top)
     ctx.fillStyle = '#FFD27F';
@@ -349,7 +351,15 @@ export default function Offline(): JSX.Element {
     // center line
     ctx.fillStyle = 'rgba(255,255,255,0.08)';
     ctx.fillRect(0, canvas.height / 2 - 1, canvas.width, 2);
+
+    // center circle
+    ctx.beginPath();
+    ctx.arc(canvas.width / 2, canvas.height / 2, 30, 0, Math.PI * 2); // radius = 20
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
   }
+
 
   function layoutKnobToPaddle() {
     const canvas = canvasRef.current;
@@ -436,24 +446,26 @@ export default function Offline(): JSX.Element {
   }
 
   return (
-    <div className="h-[92vh] flex flex-col items-center justify-between pb-2 bg-gradient-to-b from-orange-50 to-pink-50">
+    <div className="h-[92vh] flex flex-col items-center justify-start pb-2 bg-gradient-to-b from-orange-50 to-pink-50">
       {/* Header */}
-      <div className="w-full max-w-md flex items-center justify-between px-1 my-0.5">
+      <div className="w-full max-w-md flex items-center bg-cover bg-center justify-between px-1 py-0.5"
+      style={{ backgroundImage: `url(${scoresBg})` }}
+      >
         <div className="flex items-center gap-3">
           <div className="text-sm text-gray-700 text-center">
             <div className="font-light">You</div>
-            <div className="font-bold text-4xl">{rounds.you}</div>
-            <div className="text-xs text-gray-500">Rounds</div>
+            <div className="font-bold text-5xl">{rounds.you}</div>
+            <div className="text-xs text-gray-500" style={{ marginTop: '-8px' }}>Rounds</div>
           </div>
           <div className="text-sm text-gray-700 text-center">
             <div className="font-light">Opponent</div>
-            <div className="font-bold text-4xl">{rounds.opp}</div>
-            <div className="text-xs text-gray-500">Rounds</div>
+            <div className="font-bold text-5xl">{rounds.opp}</div>
+            <div className="text-xs text-gray-500" style={{ marginTop: '-8px' }}>Rounds</div>
           </div>
           <div className="text-sm text-gray-700 text-center">
             <div className="font-light">Total</div>
-            <div className="font-bold text-4xl">{MAX_ROUNDS_PER_GAME}</div>
-            <div className="text-xs text-gray-500">Rounds</div>
+            <div className="font-bold text-5xl">{MAX_ROUNDS_PER_GAME}</div>
+            <div className="text-xs text-gray-500" style={{ marginTop: '-8px' }}>Rounds</div>
           </div>
         </div>
         <div className="flex items-center justify-center">
@@ -471,12 +483,12 @@ export default function Offline(): JSX.Element {
       )}
 
       {/* Canvas */}
-      <div className="w-full max-w-md bg-white shadow p-0 flex-shrink">
+      <div className="w-full max-w-md bg-white shadow p-0 flex-shrink border-t border-b border-black/40">
         <div className="relative">
           <canvas
             ref={canvasRef}
-            className="w-full h-[65vh] touch-none"
-            style={{ display: 'block' }}
+            className="w-full h-[65vh] touch-none bg-cover bg-center "
+            style={{ display: 'block', backgroundImage: `url(${canvasBg})` }}
           />
           {/* Pause emoji overlay (appears near the puck exit) */}
           {pauseEmoji && !matchWinner && (
@@ -511,7 +523,7 @@ export default function Offline(): JSX.Element {
       </div>
 
       {/* Slider */}
-      <div className="w-full max-w-md px-2">
+      <div className="w-full max-w-md px-2 mt-1">
         {/* <div className="text-xs text-gray-600 mb-1">Drag the knob to move your paddle</div> */}
         <div
           ref={dragTrackRef}
