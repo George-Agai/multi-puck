@@ -99,7 +99,6 @@ export default function Offline(): JSX.Element {
   // Start Round 1 when game begins or when Play Again clears matchWinner & rounds
   useEffect(() => {
     // If matchWinner is null and rounds are cleared and we're on round 1, trigger countdown.
-    // This is Option 1 approach — it ensures React state updates settle before we start countdown.
     if (matchWinner === null && rounds.you === 0 && rounds.opp === 0 && currentRound === 1) {
       // Avoid re-triggering if a countdown is already active
       if (roundCountdown === null) startRoundCountdown(1);
@@ -446,7 +445,7 @@ export default function Offline(): JSX.Element {
   }
 
   return (
-    <div className="h-[92vh] flex flex-col items-center justify-start pb-2 bg-gradient-to-b from-orange-50 to-pink-50">
+    <div className="h-[92vh] flex flex-col items-center justify-start pb-2 bg-gradient-to-b from-orange-50 to-orange-200">
       {/* Header */}
       <div className="w-full max-w-md flex items-center bg-cover bg-center justify-between px-1 py-0.5"
       style={{ backgroundImage: `url(${scoresBg})` }}
@@ -476,8 +475,8 @@ export default function Offline(): JSX.Element {
       </div>
 
       {roundCountdown !== null && !matchWinner && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 backdrop-blur-sm text-white z-50">
-          <div className="text-2xl font-bold mb-2">Round {currentRound}</div>
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40  text-white z-50">
+          <div className="text-3xl font-bold mb-1">Game Starts</div>
           <div className="text-5xl font-extrabold">{roundCountdown}</div>
         </div>
       )}
@@ -524,15 +523,15 @@ export default function Offline(): JSX.Element {
 
       {/* Slider */}
       <div className="w-full max-w-md px-2 mt-1">
-        {/* <div className="text-xs text-gray-600 mb-1">Drag the knob to move your paddle</div> */}
+        <div className="text-xs text-gray-600 text-center">Drag the knob to move your paddle</div>
         <div
           ref={dragTrackRef}
           onClick={handleTrackClick}
-          className="relative mx-auto bg-white/70 rounded-full p-1"
+          className="relative mx-auto bg-transparent rounded-full p-1"
           style={{ backdropFilter: 'blur(6px)' }}
         >
-          <div className="w-full h-2 rounded-full bg-gray-100/60 relative flex items-center">
-            <div className="absolute left-1/2 -translate-x-1/2 w-11/12 h-1 rounded-full bg-gradient-to-r from-yellow-200 to-pink-200" />
+          <div className="w-full h-2 rounded-full bg-gray-200/70 border border-black/20 relative flex items-center">
+            <div className="absolute left-1/2 -translate-x-1/2 w-11/12 h-1 shadow-[inset_0_1px_3px_rgba(0,0,0,0.2)] rounded-full bg-gradient-to-r from-orange-300 to-blue-200" />
             <div
               ref={knobRef}
               onPointerDown={(e) => { e.preventDefault(); handlePointerDown(e); }}
@@ -547,7 +546,7 @@ export default function Offline(): JSX.Element {
               role="button"
               tabIndex={0}
             >
-              <div className="w-2 h-2 rounded-full bg-gradient-to-br from-orange-400 to-red-400" />
+              <div className="w-2 h-2 rounded-full bg-gradient-to-br from-orange-400 to-yellow-400" />
             </div>
           </div>
         </div>
