@@ -342,7 +342,7 @@ export default function Offline(): JSX.Element {
 
     // puck
     ctx.beginPath();
-    ctx.fillStyle = '#FF3D00';
+    ctx.fillStyle = '#BFCA28';
     const p = puckRef.current;
     ctx.arc(p.x, p.y, PUCK_SIZE, 0, Math.PI * 2);
     ctx.fill();
@@ -353,7 +353,7 @@ export default function Offline(): JSX.Element {
 
     // center circle
     ctx.beginPath();
-    ctx.arc(canvas.width / 2, canvas.height / 2, 30, 0, Math.PI * 2); // radius = 20
+    ctx.arc(canvas.width / 2, canvas.height / 2, 40, 0, Math.PI * 2); // radius = 35
     ctx.strokeStyle = 'rgba(255,255,255,0.08)';
     ctx.lineWidth = 2;
     ctx.stroke();
