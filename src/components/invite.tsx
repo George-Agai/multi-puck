@@ -1,6 +1,6 @@
 // src/components/InviteFriend.tsx
 import { useMemo, useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Button } from './button';
 
 function ensureRoomIdFromUrlOrNew(location: Location): string {
