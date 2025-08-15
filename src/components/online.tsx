@@ -457,16 +457,6 @@ function broadcastState() {
         knob.style.transform = `translateX(${knobLeft}px)`;
     }
 
-    function emitPaddleX() {
-        const socket = socketRef.current;
-        const canvas = canvasRef.current;
-        if (!socket || !canvas) return;
-      
-        const maxX = Math.max(1, canvas.width - paddleWidthRef.current);
-        const paddlePct = paddleRef.current / maxX; // 0..1
-        socket.emit('paddle', { roomId: roomIdRef.current, paddlePct });
-    }
-
     function emitPaddleNormalized() {
         const socket = socketRef.current;
         const canvas = canvasRef.current;
@@ -501,7 +491,6 @@ function broadcastState() {
         const paddleX = pct * (canvas.width - paddleWidthRef.current);
         paddleRef.current = Math.max(0, Math.min(paddleX, canvas.width - paddleWidthRef.current));
         knob.style.transform = `translateX(${leftClamped}px)`;
-        // emitPaddleX();
         emitPaddleNormalized();
     }
     function handlePointerUp() {
@@ -520,7 +509,6 @@ function broadcastState() {
         const paddleX = pct * (canvas.width - paddleWidthRef.current);
         paddleRef.current = Math.max(0, Math.min(paddleX, canvas.width - paddleWidthRef.current));
         knob.style.transform = `translateX(${left}px)`;
-        // emitPaddleX();
         emitPaddleNormalized();
     }
 
