@@ -108,7 +108,7 @@ export default function Online(): JSX.Element {
         return () => window.removeEventListener('resize', resize);
     }, []);
 
-    
+
 
     // Networking: connect + join room
     useEffect(() => {
@@ -151,7 +151,7 @@ export default function Online(): JSX.Element {
           
 
         // Opponent paddle updates (whoever sent it)
-        socket.on('paddle', ({ playerId, paddleX }) => {
+        socket.on('paddle', ({ paddleX }) => {
             // If I'm host, this is guest's bottom paddle in their view -> top paddle in my sim
             // If I'm guest, this is host's bottom paddle in their view -> top paddle in my view
             opponentPaddleXRef.current = paddleX;
@@ -164,8 +164,7 @@ export default function Online(): JSX.Element {
             const canvas = canvasRef.current;
             if (!canvas) return;
 
-            const { puck, hostPaddleX, guestPaddleX, rounds: r, pauseEmoji } = state;
-
+            const { puck, hostPaddleX, rounds: r, pauseEmoji } = state;
             // host sim uses: host bottom, guest top
             // guest must render: me bottom => swap who is 'you/opp' and mirror Y
             puckRef.current.x = puck.x;
