@@ -1,14 +1,19 @@
 import { useInView } from '../hooks/useInView'
-import { useNavigate } from 'react-router-dom';
 
-export const Button: React.FC = () => {
+
+interface ButtonProps{
+    onClick: () => void;
+    buttonText: string
+}
+
+export const Button: React.FC<ButtonProps> = ({ onClick, buttonText }) => {
     const [ref, inView] = useInView<HTMLButtonElement>({ threshold: 0.1 })
-    const navigate = useNavigate()
+    
 
     return (
         <button
             ref={ref}
-            onClick={() => navigate('/offline')}
+            onClick={onClick}
             className={`
     transform transition-transform duration-500 ease-out
     px-4 py-1 mt-1 mb-1 font-semibold cursor-pointer
@@ -18,7 +23,7 @@ export const Button: React.FC = () => {
     ${inView ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'}
   `}
         >
-            PLAY OFFLINE
+            {buttonText}
         </button>
 
     );
