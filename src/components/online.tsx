@@ -141,58 +141,82 @@ export default function Online(): JSX.Element {
 
         socket.on('opponent:joined', () => {
             console.log("Current role-->", roleRef.current)
+            setWaitingForGuest(false);
             if (roleRef.current === 'host') {
                 setWaitingForGuest(false);
                 setToast('Guest joined');
                 setTimeout(() => startRoundCountdown(1), 2000);
                 setTimeout(() => setToast(null), 1500);
             }
+            else if(roleRef.current === 'guest'){
+                setWaitingForGuest(false);
+                setToast('You joined');
+                setTimeout(() => startRoundCountdown(1), 2000);
+                setTimeout(() => setToast(null), 1500);
+            }
+            // setWaitingForGuest(false);
         });
           
-
-        // Opponent paddle updates (whoever sent it)
-        socket.on('paddle', ({ paddleX }) => {
-            // If I'm host, this is guest's bottom paddle in their view -> top paddle in my sim
-            // If I'm guest, this is host's bottom paddle in their view -> top paddle in my view
-            opponentPaddleXRef.current = paddleX;
-        });
-
-        // Host authoritative state -> guest receives
-        socket.on('state', (state) => {
-            if (roleRef.current !== 'guest') return;
-            // Mirror Y so my paddle is bottom in my view
+        socket.on('paddle', (payload: any) => {
             const canvas = canvasRef.current;
             if (!canvas) return;
-
-            const { puck, hostPaddleX, rounds: r, pauseEmoji } = state;
-            // host sim uses: host bottom, guest top
-            // guest must render: me bottom => swap who is 'you/opp' and mirror Y
-            puckRef.current.x = puck.x;
-            puckRef.current.y = canvas.height - puck.y; // mirror Y
-            // velocities not required for guest draw (we don't integrate), but ok to keep for future
-            puckRef.current.dx = puck.dx;
-            puckRef.current.dy = -puck.dy; // mirrored
-
-            // In my view (guest): local paddleRef is bottom (already controlled locally),
-            // opponentRef is top => that's the host's bottom mirrored
-            opponentRef.current = hostPaddleX;
-
-            // Rounds come from host; swap labels so they remain "You/Opponent" correctly on guest:
-            setRounds({ you: r.opp, opp: r.you });
-
-            // Emoji position mirrored
-            if (pauseEmoji) {
-                setPauseEmoji({
-                    side: pauseEmoji.side === 'you' ? 'opp' : 'you',
-                    x: pauseEmoji.x,
-                    y: canvas.height - pauseEmoji.y,
-                });
-            } else {
-                setPauseEmoji(null);
+          
+            const maxX = Math.max(1, canvas.width - paddleWidthRef.current);
+          
+            // Prefer normalized percent; fall back to pixels if a legacy client/server emits it
+            let pct: number | null = null;
+          
+            if (typeof payload?.paddlePct === 'number' && isFinite(payload.paddlePct)) {
+              pct = Math.max(0, Math.min(1, payload.paddlePct));
+            } else if (typeof payload?.paddleX === 'number' && isFinite(payload.paddleX)) {
+              // legacy support
+              pct = Math.max(0, Math.min(1, payload.paddleX / maxX));
             }
+          
+            if (pct === null) return; // ignore malformed payloads
+          
+            opponentPaddleXRef.current = pct * maxX;
+          });
+          
+          
+        socket.on('state', (state) => {
+            if (roleRef.current !== 'guest') return;
+            const canvas = canvasRef.current;
+            if (!canvas) return;
+          
+            const { puck, hostPaddlePct, paddleWPct, rounds: r, pauseEmoji: pe } = state;
+            const W = canvas.width, H = canvas.height;
+          
+            // Keep paddle width ratio consistent with host (optional but helps uniformity)
+            paddleWidthRef.current = Math.max(10, paddleWPct * W);
 
+            // Scale normalized puck position & velocity back to canvas size
+            puckRef.current.x = puck.x * W;
+            puckRef.current.y = H - (puck.y * H); // mirror Y
+            puckRef.current.dx = puck.dx * W;
+            puckRef.current.dy = -(puck.dy * H); 
+
+            // opponent paddle (host's bottom -> my top)
+            opponentRef.current = hostPaddlePct * (W - paddleWPct * W);
+            paddleWidthRef.current = paddleWPct * W;
+          
+            // rounds (swap so labels remain 'You/Opponent' correctly)
+            setRounds({ you: r.opp, opp: r.you });
+          
+            // emoji mirrored & denormalized
+            if (pe) {
+              setPauseEmoji({
+                side: pe.side === 'you' ? 'opp' : 'you',
+                x: pe.x * W,
+                y: (1 - pe.y) * H,
+              });
+            } else {
+              setPauseEmoji(null);
+            }
+          
             lastStateTimeRef.current = performance.now();
-        });
+          });
+          
 
         socket.on('roundEnd', ({ rounds: r, currentRound: cr }) => {
             if (roleRef.current === 'guest') {
@@ -295,21 +319,39 @@ export default function Online(): JSX.Element {
         }
     }
 
-    function broadcastState() {
-        const socket = socketRef.current;
-        const canvas = canvasRef.current;
-        if (!socket || !canvas) return;
-        socket.emit('state', {
-            roomId: roomIdRef.current,
-            state: {
-                puck: puckRef.current,
-                hostPaddleX: paddleRef.current,
-                guestPaddleX: opponentRef.current, // in host sim, guest is top
-                rounds,
-                pauseEmoji,
+function broadcastState() {
+    const socket = socketRef.current;
+    const canvas = canvasRef.current;
+    if (!socket || !canvas) return;
+
+    const W = canvas.width, H = canvas.height;
+    const p = puckRef.current;
+
+    socket.emit('state', {
+        roomId: roomIdRef.current,
+        state: {
+            // normalized puck position & velocity
+            puck: {
+                x: p.x / W,
+                y: p.y / H,
+                dx: p.dx / W,
+                dy: p.dy / H
             },
-        });
-    }
+            // paddles normalized
+            hostPaddlePct: paddleRef.current / Math.max(1, W - paddleWidthRef.current),
+            paddleWPct: paddleWidthRef.current / W,
+            rounds,
+            // normalized emoji
+            pauseEmoji: pauseEmoji
+                ? { side: pauseEmoji.side, x: pauseEmoji.x / W, y: pauseEmoji.y / H }
+                : null,
+        },
+    });
+}
+
+
+
+      
 
     function endGameHost(winner: string) {
         setMatchWinner(winner);
@@ -415,11 +457,20 @@ export default function Online(): JSX.Element {
         knob.style.transform = `translateX(${knobLeft}px)`;
     }
 
-    function emitPaddleX() {
+    function emitPaddleNormalized() {
         const socket = socketRef.current;
-        if (!socket) return;
-        socket.emit('paddle', { roomId: roomIdRef.current, paddleX: paddleRef.current });
-    }
+        const canvas = canvasRef.current;
+        if (!socket || !canvas) return;
+      
+        const maxX = Math.max(1, canvas.width - paddleWidthRef.current);
+        const pct = Math.max(0, Math.min(1, paddleRef.current / maxX)); // 0..1
+      
+        socket.emit('paddle', {
+          roomId: roomIdRef.current,
+          paddlePct: pct,
+        });
+      }      
+      
 
     function handlePointerDown(e: any) {
         draggingRef.current = true;
@@ -440,7 +491,7 @@ export default function Online(): JSX.Element {
         const paddleX = pct * (canvas.width - paddleWidthRef.current);
         paddleRef.current = Math.max(0, Math.min(paddleX, canvas.width - paddleWidthRef.current));
         knob.style.transform = `translateX(${leftClamped}px)`;
-        emitPaddleX();
+        emitPaddleNormalized();
     }
     function handlePointerUp() {
         draggingRef.current = false;
@@ -458,7 +509,7 @@ export default function Online(): JSX.Element {
         const paddleX = pct * (canvas.width - paddleWidthRef.current);
         paddleRef.current = Math.max(0, Math.min(paddleX, canvas.width - paddleWidthRef.current));
         knob.style.transform = `translateX(${left}px)`;
-        emitPaddleX();
+        emitPaddleNormalized();
     }
 
     function resetMatch() {
@@ -478,7 +529,7 @@ export default function Online(): JSX.Element {
             >
                 <div className="flex items-center gap-3">
                     <div className="text-sm text-gray-700 text-center">
-                        <div className="font-light">You</div>
+                        <div className="font-light">You - {roleRef.current}</div>
                         <div className="font-bold text-5xl">{rounds.you}</div>
                         <div className="text-xs text-gray-500" style={{ marginTop: '-8px' }}>Rounds</div>
                     </div>
