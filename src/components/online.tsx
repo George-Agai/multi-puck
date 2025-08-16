@@ -36,8 +36,6 @@ export default function Online(): JSX.Element {
     const [currentRound, setCurrentRound] = useState(1);
     const [waitingForGuest, setWaitingForGuest] = useState(false);
     const [toast, setToast] = useState<string | null>(null);
-
-
     const [pauseEmoji, setPauseEmoji] = useState<{ side: 'you' | 'opp'; x: number; y: number } | null>(null);
 
     // ---- networking ----
@@ -46,6 +44,13 @@ export default function Online(): JSX.Element {
     const roomIdRef = useRef<string>('');
     const opponentPaddleXRef = useRef<number>(0); // raw from network (host uses this as top paddle)
     const lastStateTimeRef = useRef<number>(0);   // for interpolation on guest
+    const roundsRef = useRef<Score>({ you: 0, opp: 0 });
+    const currentRoundRef = useRef<number>(1);
+    const pauseEmojiRef = useRef<typeof pauseEmoji>(null);
+
+    useEffect(() => { roundsRef.current = rounds; }, [rounds]);
+    useEffect(() => { currentRoundRef.current = currentRound; }, [currentRound]);
+    useEffect(() => { pauseEmojiRef.current = pauseEmoji; }, [pauseEmoji]);
 
     // Helper: get/create roomId from URL (?room=xxx)
     function getRoomId(): string {
@@ -69,6 +74,7 @@ export default function Online(): JSX.Element {
 
     // Countdown only at game start (same behavior as your latest) :contentReference[oaicite:1]{index=1}
     function startRoundCountdown(roundNum: number) {
+        console.log("Winner in start countdown", matchWinner)
         if (matchWinner) return;
         stopLoop();
         setCurrentRound(roundNum);
@@ -148,7 +154,7 @@ export default function Online(): JSX.Element {
                 setTimeout(() => startRoundCountdown(1), 2000);
                 setTimeout(() => setToast(null), 1500);
             }
-            else if(roleRef.current === 'guest'){
+            else if (roleRef.current === 'guest') {
                 setWaitingForGuest(false);
                 setToast('You joined');
                 setTimeout(() => startRoundCountdown(1), 2000);
@@ -156,37 +162,37 @@ export default function Online(): JSX.Element {
             }
             // setWaitingForGuest(false);
         });
-          
+
         socket.on('paddle', (payload: any) => {
             const canvas = canvasRef.current;
             if (!canvas) return;
-          
+
             const maxX = Math.max(1, canvas.width - paddleWidthRef.current);
-          
+
             // Prefer normalized percent; fall back to pixels if a legacy client/server emits it
             let pct: number | null = null;
-          
+
             if (typeof payload?.paddlePct === 'number' && isFinite(payload.paddlePct)) {
-              pct = Math.max(0, Math.min(1, payload.paddlePct));
+                pct = Math.max(0, Math.min(1, payload.paddlePct));
             } else if (typeof payload?.paddleX === 'number' && isFinite(payload.paddleX)) {
-              // legacy support
-              pct = Math.max(0, Math.min(1, payload.paddleX / maxX));
+                // legacy support
+                pct = Math.max(0, Math.min(1, payload.paddleX / maxX));
             }
-          
+
             if (pct === null) return; // ignore malformed payloads
-          
+
             opponentPaddleXRef.current = pct * maxX;
-          });
-          
-          
+        });
+
+
         socket.on('state', (state) => {
             if (roleRef.current !== 'guest') return;
             const canvas = canvasRef.current;
             if (!canvas) return;
-          
+
             const { puck, hostPaddlePct, paddleWPct, rounds: r, pauseEmoji: pe } = state;
             const W = canvas.width, H = canvas.height;
-          
+
             // Keep paddle width ratio consistent with host (optional but helps uniformity)
             paddleWidthRef.current = Math.max(10, paddleWPct * W);
 
@@ -194,29 +200,34 @@ export default function Online(): JSX.Element {
             puckRef.current.x = puck.x * W;
             puckRef.current.y = H - (puck.y * H); // mirror Y
             puckRef.current.dx = puck.dx * W;
-            puckRef.current.dy = -(puck.dy * H); 
+            puckRef.current.dy = -(puck.dy * H);
 
             // opponent paddle (host's bottom -> my top)
             opponentRef.current = hostPaddlePct * (W - paddleWPct * W);
             paddleWidthRef.current = paddleWPct * W;
-          
+
             // rounds (swap so labels remain 'You/Opponent' correctly)
             setRounds({ you: r.opp, opp: r.you });
-          
+
             // emoji mirrored & denormalized
             if (pe) {
-              setPauseEmoji({
-                side: pe.side === 'you' ? 'opp' : 'you',
-                x: pe.x * W,
-                y: (1 - pe.y) * H,
-              });
+                setPauseEmoji({
+                    side: pe.side === 'you' ? 'opp' : 'you',
+                    x: pe.x * W,
+                    y: (1 - pe.y) * H,
+                });
+                // setPauseEmoji({
+                //     side: pe.side === 'you' ? 'opp' : 'you',
+                //     x: pe.x * W,
+                //     y: pe.y * H,
+                // });
             } else {
-              setPauseEmoji(null);
+                setPauseEmoji(null);
             }
-          
+
             lastStateTimeRef.current = performance.now();
-          });
-          
+        });
+
 
         socket.on('roundEnd', ({ rounds: r, currentRound: cr }) => {
             if (roleRef.current === 'guest') {
@@ -237,6 +248,10 @@ export default function Online(): JSX.Element {
             setPauseEmoji(null);
         });
 
+        socket.on('playAgain', () => {
+            resetMatch();
+        });
+
         socket.on('opponent:left', () => {
             setMatchWinner('Opponent left');
             stopLoop();
@@ -255,7 +270,12 @@ export default function Online(): JSX.Element {
                 broadcastState();
             }
             draw();
-            rafRef.current = window.requestAnimationFrame(step);
+            // rafRef.current = window.requestAnimationFrame(step);
+
+            // Only schedule another frame if we didn't stop during this tick
+            if (rafRef.current !== null) {
+                rafRef.current = window.requestAnimationFrame(step);
+            }
         };
         rafRef.current = window.requestAnimationFrame(step);
     }
@@ -319,39 +339,43 @@ export default function Online(): JSX.Element {
         }
     }
 
-function broadcastState() {
-    const socket = socketRef.current;
-    const canvas = canvasRef.current;
-    if (!socket || !canvas) return;
+    function broadcastState() {
+        const socket = socketRef.current;
+        const canvas = canvasRef.current;
+        if (!socket || !canvas) return;
 
-    const W = canvas.width, H = canvas.height;
-    const p = puckRef.current;
+        const W = canvas.width, H = canvas.height;
+        const p = puckRef.current;
 
-    socket.emit('state', {
-        roomId: roomIdRef.current,
-        state: {
-            // normalized puck position & velocity
-            puck: {
-                x: p.x / W,
-                y: p.y / H,
-                dx: p.dx / W,
-                dy: p.dy / H
+        socket.emit('state', {
+            roomId: roomIdRef.current,
+            state: {
+                // normalized puck position & velocity
+                puck: {
+                    x: p.x / W,
+                    y: p.y / H,
+                    dx: p.dx / W,
+                    dy: p.dy / H
+                },
+                // paddles normalized
+                hostPaddlePct: paddleRef.current / Math.max(1, W - paddleWidthRef.current),
+                paddleWPct: paddleWidthRef.current / W,
+                // rounds,
+                rounds: roundsRef.current,
+                // normalized emoji
+                // pauseEmoji: pauseEmoji
+                //     ? { side: pauseEmoji.side, x: pauseEmoji.x / W, y: pauseEmoji.y / H }
+                //     : null,
+                pauseEmoji: pauseEmojiRef.current
+                    ? { side: pauseEmojiRef.current.side, x: pauseEmojiRef.current.x / W, y: pauseEmojiRef.current.y / H }
+                    : null,
             },
-            // paddles normalized
-            hostPaddlePct: paddleRef.current / Math.max(1, W - paddleWidthRef.current),
-            paddleWPct: paddleWidthRef.current / W,
-            rounds,
-            // normalized emoji
-            pauseEmoji: pauseEmoji
-                ? { side: pauseEmoji.side, x: pauseEmoji.x / W, y: pauseEmoji.y / H }
-                : null,
-        },
-    });
-}
+        });
+    }
 
 
 
-      
+
 
     function endGameHost(winner: string) {
         setMatchWinner(winner);
@@ -366,8 +390,17 @@ function broadcastState() {
         const canvas = canvasRef.current!;
         const puck = puckRef.current;
 
-        const nextRounds: Score = side === 'you' ? { you: rounds.you + 1, opp: rounds.opp } : { you: rounds.you, opp: rounds.opp + 1 };
+        // const nextRounds: Score = side === 'you' ? { you: rounds.you + 1, opp: rounds.opp } : { you: rounds.you, opp: rounds.opp + 1 };
+        // setRounds(nextRounds);
+
+        // Use ref to avoid stale closure, then sync state + ref
+        const base = roundsRef.current;
+        const nextRounds: Score =
+            side === 'you'
+                ? { you: base.you + 1, opp: base.opp }
+                : { you: base.you, opp: base.opp + 1 };
         setRounds(nextRounds);
+        roundsRef.current = nextRounds;
 
         // win check
         if (nextRounds.you >= ROUNDS_TO_WIN_GAME || nextRounds.opp >= ROUNDS_TO_WIN_GAME ||
@@ -381,11 +414,30 @@ function broadcastState() {
         const y = side === 'you' ? 20 : canvas.height - 34;
         setPauseEmoji({ side, x, y });
 
+        // Immediately deliver a single snapshot so guest sees the static pause icon during the pause.
+        // Use fresh values (not stale closures).
+        const W = canvas.width, H = canvas.height;
+        socketRef.current?.emit('state', {
+            roomId: roomIdRef.current,
+            state: {
+                puck: { x: puck.x / W, y: puck.y / H, dx: puck.dx / W, dy: puck.dy / H },
+                hostPaddlePct: paddleRef.current / Math.max(1, W - paddleWidthRef.current),
+                paddleWPct: paddleWidthRef.current / W,
+                rounds: nextRounds,
+                pauseEmoji: { side, x: x / W, y: y / H },
+            },
+        });
+
         setTimeout(() => {
             setPauseEmoji(null);
-            setCurrentRound((r) => Math.min(r + 1, MAX_ROUNDS_PER_GAME));
+            // setCurrentRound((r) => Math.min(r + 1, MAX_ROUNDS_PER_GAME));
+            // resetRound();
+            // socketRef.current?.emit('roundEnd', { roomId: roomIdRef.current, payload: { rounds: nextRounds, currentRound: currentRound + 1 } });
+
+            const nextRoundNo = Math.min(currentRoundRef.current + 1, MAX_ROUNDS_PER_GAME);
+            setCurrentRound(nextRoundNo);
             resetRound();
-            socketRef.current?.emit('roundEnd', { roomId: roomIdRef.current, payload: { rounds: nextRounds, currentRound: currentRound + 1 } });
+            socketRef.current?.emit('roundEnd', { roomId: roomIdRef.current, payload: { rounds: nextRounds, currentRound: nextRoundNo } });
             startLoop();
         }, 2000);
     }
@@ -461,16 +513,16 @@ function broadcastState() {
         const socket = socketRef.current;
         const canvas = canvasRef.current;
         if (!socket || !canvas) return;
-      
+
         const maxX = Math.max(1, canvas.width - paddleWidthRef.current);
         const pct = Math.max(0, Math.min(1, paddleRef.current / maxX)); // 0..1
-      
+
         socket.emit('paddle', {
-          roomId: roomIdRef.current,
-          paddlePct: pct,
+            roomId: roomIdRef.current,
+            paddlePct: pct,
         });
-      }      
-      
+    }
+
 
     function handlePointerDown(e: any) {
         draggingRef.current = true;
@@ -604,7 +656,11 @@ function broadcastState() {
                             <div className="bg-white/90 p-4 rounded-lg text-center pointer-events-auto">
                                 <div className="text-xl font-bold">{matchWinner} won the game!</div>
                                 <button
-                                    onClick={resetMatch}
+                                    // onClick={resetMatch}
+                                    onClick={() => {
+                                        resetMatch();
+                                        socketRef.current?.emit('playAgain', { roomId: roomIdRef.current });
+                                    }}
                                     className="flex-1 px-3 py-0.5 bg-orange-500 text-white rounded mt-1"
                                     type="button"
                                 >
