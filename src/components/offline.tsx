@@ -468,8 +468,8 @@ export default function Offline(): JSX.Element {
           </div>
         </div>
         <div className="flex items-center justify-center">
-          <div className="flex items-center justify-center bg-gray-200 w-3 h-3 rounded-full">
-            P
+          <div className="flex items-center justify-center border border-black/30 bg-gray-200 w-3 h-3 rounded-full">
+            Y
           </div>
         </div>
       </div>
