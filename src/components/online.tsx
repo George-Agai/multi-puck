@@ -47,10 +47,12 @@ export default function Online(): JSX.Element {
     const roundsRef = useRef<Score>({ you: 0, opp: 0 });
     const currentRoundRef = useRef<number>(1);
     const pauseEmojiRef = useRef<typeof pauseEmoji>(null);
+    const matchWinnerRef = useRef<string | null>(null);
 
     useEffect(() => { roundsRef.current = rounds; }, [rounds]);
     useEffect(() => { currentRoundRef.current = currentRound; }, [currentRound]);
     useEffect(() => { pauseEmojiRef.current = pauseEmoji; }, [pauseEmoji]);
+    useEffect(() => { matchWinnerRef.current = matchWinner; }, [matchWinner]);
 
     // Helper: get/create roomId from URL (?room=xxx)
     function getRoomId(): string {
@@ -74,8 +76,11 @@ export default function Online(): JSX.Element {
 
     // Countdown only at game start (same behavior as your latest) :contentReference[oaicite:1]{index=1}
     function startRoundCountdown(roundNum: number) {
-        console.log("Winner in start countdown", matchWinner)
-        if (matchWinner) return;
+        // console.log("Winner in start countdown", matchWinner)
+        // console.log("WinnerRef in start countdown", matchWinnerRef.current)
+
+        // if (matchWinner) return;/
+        if (matchWinnerRef.current) return;
         stopLoop();
         setCurrentRound(roundNum);
         let c = 3;
@@ -216,11 +221,6 @@ export default function Online(): JSX.Element {
                     x: pe.x * W,
                     y: (1 - pe.y) * H,
                 });
-                // setPauseEmoji({
-                //     side: pe.side === 'you' ? 'opp' : 'you',
-                //     x: pe.x * W,
-                //     y: pe.y * H,
-                // });
             } else {
                 setPauseEmoji(null);
             }
@@ -270,7 +270,6 @@ export default function Online(): JSX.Element {
                 broadcastState();
             }
             draw();
-            // rafRef.current = window.requestAnimationFrame(step);
 
             // Only schedule another frame if we didn't stop during this tick
             if (rafRef.current !== null) {
@@ -362,10 +361,6 @@ export default function Online(): JSX.Element {
                 paddleWPct: paddleWidthRef.current / W,
                 // rounds,
                 rounds: roundsRef.current,
-                // normalized emoji
-                // pauseEmoji: pauseEmoji
-                //     ? { side: pauseEmoji.side, x: pauseEmoji.x / W, y: pauseEmoji.y / H }
-                //     : null,
                 pauseEmoji: pauseEmojiRef.current
                     ? { side: pauseEmojiRef.current.side, x: pauseEmojiRef.current.x / W, y: pauseEmojiRef.current.y / H }
                     : null,
@@ -385,13 +380,11 @@ export default function Online(): JSX.Element {
     }
 
     function handleRoundEndHost(side: 'you' | 'opp') {
-        if (matchWinner) return;
+        // if (matchWinner) return;
+        if (matchWinnerRef.current) return;  // <-- use ref
         stopLoop();
         const canvas = canvasRef.current!;
         const puck = puckRef.current;
-
-        // const nextRounds: Score = side === 'you' ? { you: rounds.you + 1, opp: rounds.opp } : { you: rounds.you, opp: rounds.opp + 1 };
-        // setRounds(nextRounds);
 
         // Use ref to avoid stale closure, then sync state + ref
         const base = roundsRef.current;
@@ -412,10 +405,13 @@ export default function Online(): JSX.Element {
         // emoji pause 2s where it went out (host only)
         const x = Math.max(12, Math.min(puck.x, canvas.width - 12));
         const y = side === 'you' ? 20 : canvas.height - 34;
-        setPauseEmoji({ side, x, y });
+        const emoji = { side, x, y };
+
+        setPauseEmoji(emoji);
+        pauseEmojiRef.current = emoji; // <--- make it persist for broadcast
+
 
         // Immediately deliver a single snapshot so guest sees the static pause icon during the pause.
-        // Use fresh values (not stale closures).
         const W = canvas.width, H = canvas.height;
         socketRef.current?.emit('state', {
             roomId: roomIdRef.current,
@@ -430,9 +426,7 @@ export default function Online(): JSX.Element {
 
         setTimeout(() => {
             setPauseEmoji(null);
-            // setCurrentRound((r) => Math.min(r + 1, MAX_ROUNDS_PER_GAME));
-            // resetRound();
-            // socketRef.current?.emit('roundEnd', { roomId: roomIdRef.current, payload: { rounds: nextRounds, currentRound: currentRound + 1 } });
+            pauseEmojiRef.current = null; // <--- clear after pause
 
             const nextRoundNo = Math.min(currentRoundRef.current + 1, MAX_ROUNDS_PER_GAME);
             setCurrentRound(nextRoundNo);
@@ -567,6 +561,7 @@ export default function Online(): JSX.Element {
     function resetMatch() {
         setRounds({ you: 0, opp: 0 });
         setMatchWinner(null);
+        matchWinnerRef.current = null;
         setCurrentRound(1);
         resetRound();
         startRoundCountdown(1);
@@ -574,7 +569,6 @@ export default function Online(): JSX.Element {
 
     return (
         <div className="h-[92vh] flex flex-col items-center justify-start pb-2 bg-gradient-to-b from-orange-50 to-orange-200">
-            {/* Header (same as offline, but with two overlapping icons on the right) */} {/* :contentReference[oaicite:5]{index=5} */}
             <div
                 className="w-full max-w-md flex items-center bg-cover bg-center justify-between px-1 py-0.5"
                 style={{ backgroundImage: `url(${scoresBg})` }}
@@ -654,9 +648,8 @@ export default function Online(): JSX.Element {
                     {matchWinner && (
                         <div className="absolute inset-0 flex items-center justify-center">
                             <div className="bg-white/90 p-4 rounded-lg text-center pointer-events-auto">
-                                <div className="text-xl font-bold">{matchWinner} won the game!</div>
+                                <div className="text-xl font-bold">{matchWinner} {matchWinner === 'Opponent left' ? null : 'won the game!'}</div>
                                 <button
-                                    // onClick={resetMatch}
                                     onClick={() => {
                                         resetMatch();
                                         socketRef.current?.emit('playAgain', { roomId: roomIdRef.current });
